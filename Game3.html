@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hammerhead Shark Game + Leaderboard</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: linear-gradient(to bottom, #0077be, #004466);
+    }
+    canvas {
+      display: block;
+      background: #005577;
+    }
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-family: sans-serif;
+      font-size: 20px;
+      color: white;
+    }
+    #nameInput {
+      position: absolute;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      padding: 10px;
+      display: none;
+    }
+    #leaderboard {
+      position: absolute;
+      top: 150px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 10px;
+      font-family: sans-serif;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div id="score">Score: 0</div>
+<input id="nameInput" placeholder="Enter your name" />
+<div id="leaderboard"></div>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreDisplay = document.getElementById('score');
+const nameInput = document.getElementById('nameInput');
+const leaderboardDiv = document.getElementById('leaderboard');
+
+const shark = {
+  x: 100,
+  y: 180,
+  width: 100,
+  height: 40,
+  speed: 5,
+  tailAngle: 0,
+  tailDirection: 1
+};
+
+let score = 0;
+let gameOver = false;
+let keys = {};
+
+const fishTypes = {
+  small: {width: 40, height: 20, color: 'orange', speed: 3, points: 10},
+  big: {width: 70, height: 35, color: 'red', speed: 2, points: 0}
+};
+
+let fishArray = [];
+
+function spawnFish() {
+  const type = Math.random() < 0.6 ? 'small' : 'big';
+  const fishInfo = fishTypes[type];
+  const yPos = Math.random() * (canvas.height - fishInfo.height);
+  fishArray.push({
+    x: canvas.width,
+    y: yPos,
+    width: fishInfo.width,
+    height: fishInfo.height,
+    color: fishInfo.color,
+    speed: fishInfo.speed,
+    type: type
+  });
+}
+
+function drawHammerheadShark() {
+  const { x, y, width, height } = shark;
+
+  // Body
+  ctx.fillStyle = 'gray';
+  ctx.beginPath();
+  ctx.ellipse(x + 60, y + height / 2, 40, height / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tail (on the left)
+  ctx.save();
+  ctx.translate(x + 20, y + height / 2);
+  ctx.rotate(shark.tailAngle);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-20, -15);
+  ctx.lineTo(-20, 15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Hammerhead head (on the right)
+  ctx.fillStyle = 'gray';
+  ctx.fillRect(x + 80, y - 10, 40, height + 20);
+
+  // Eyes
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  ctx.arc(x + 98, y + 5, 5, 0, Math.PI * 2);
+  ctx.arc(x + 98, y + height - 5, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'black';
+  ctx.beginPath();
+  ctx.arc(x + 98, y + 5, 2, 0, Math.PI * 2);
+  ctx.arc(x + 98, y + height - 5, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawFish(fish) {
+  ctx.fillStyle = fish.color;
+  ctx.beginPath();
+  ctx.ellipse(fish.x + fish.width / 2, fish.y + fish.height / 2, fish.width / 2, fish.height / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(fish.x, fish.y + fish.height / 2);
+  ctx.lineTo(fish.x - fish.width / 4, fish.y);
+  ctx.lineTo(fish.x - fish.width / 4, fish.y + fish.height);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function updateFish() {
+  for (let i = fishArray.length - 1; i >= 0; i--) {
+    fishArray[i].x -= fishArray[i].speed;
+    if (fishArray[i].x + fishArray[i].width < 0) {
+      fishArray.splice(i, 1);
+    }
+  }
+}
+
+function collision(a, b) {
+  return a.x < b.x + b.width &&
+         a.x + a.width > b.x &&
+         a.y < b.y + b.height &&
+         a.y + a.height > b.y;
+}
+
+window.addEventListener('keydown', e => keys[e.key] = true);
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+function update() {
+  if (gameOver) return;
+
+  if (keys['ArrowUp'] && shark.y > 0) shark.y -= shark.speed;
+  if (keys['ArrowDown'] && shark.y + shark.height < canvas.height) shark.y += shark.speed;
+  if (keys['ArrowLeft'] && shark.x > 0) shark.x -= shark.speed;
+  if (keys['ArrowRight'] && shark.x + shark.width < canvas.width) shark.x += shark.speed;
+
+  shark.tailAngle += 0.05 * shark.tailDirection;
+  if (shark.tailAngle > 0.4 || shark.tailAngle < -0.4) shark.tailDirection *= -1;
+
+  updateFish();
+
+  for (let i = fishArray.length - 1; i >= 0; i--) {
+    if (collision(shark, fishArray[i])) {
+      if (fishArray[i].type === 'small') {
+        score += fishTypes.small.points;
+        fishArray.splice(i, 1);
+      } else {
+        gameOver = true;
+        nameInput.style.display = 'block';
+        nameInput.focus();
+      }
+    }
+  }
+
+  if (Math.random() < 0.03) spawnFish();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawHammerheadShark();
+  fishArray.forEach(drawFish);
+  scoreDisplay.textContent = 'Score: ' + score;
+}
+
+function gameLoop() {
+  update();
+  draw();
+  if (!gameOver) requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+
+// Handle name input and leaderboard saving
+nameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const playerName = nameInput.value.trim().substring(0, 10);
+    if (playerName) {
+      const leaderboard = JSON.parse(localStorage.getItem('leaderboard')) || [];
+      leaderboard.push({ name: playerName, score });
+      leaderboard.sort((a, b) => b.score - a.score);
+      leaderboard.splice(5); // top 5
+      localStorage.setItem('leaderboard', JSON.stringify(leaderboard));
+      showLeaderboard(leaderboard);
+    }
+    nameInput.style.display = 'none';
+  }
+});
+
+function showLeaderboard(data) {
+  leaderboardDiv.style.display = 'block';
+  leaderboardDiv.innerHTML = `<h3>🏆 Leaderboard</h3>` +
+    data.map((entry, i) => `<div>${i + 1}. ${entry.name} — ${entry.score}</div>`).join('');
+}
+</script>
+</body>
+</html>
